@@ -27,11 +27,11 @@ install: ## Installs NPM dependencies
 
 bootstrap: ## Deploys the CDK Toolkit staging stack
 	@echo "Bootstrapping..."
-	npx cdk bootstrap $(CDK_OPTIONS)
+	npx cdk bootstrap $(CDK_OPTIONS) --profile admin
 
 deploy: ## Deploys the stack and sanitizes the stack output
 	@echo "Deploying $(STACK)..."
-	npx cdk deploy $(STACK) --outputs-file temp_out.json $(CDK_OPTIONS)
+	npx cdk deploy $(STACK) --outputs-file temp_out.json $(CDK_OPTIONS) --profile admin
 	@echo "Sanitizing CDK output..."
 	node sanitize-output
 	rm temp_out.json
@@ -39,7 +39,7 @@ deploy: ## Deploys the stack and sanitizes the stack output
 
 destroy: clean ## Destroys the stack and cleans up
 	@echo "Destroying $(STACK)..."
-	npx cdk destroy $(STACK) $(CDK_OPTIONS)
+	npx cdk destroy $(STACK) $(CDK_OPTIONS) --profile admin
 
 clean: ## Deletes the cloud assembly directory (cdk.out)
 	@echo "Cleaning..."
