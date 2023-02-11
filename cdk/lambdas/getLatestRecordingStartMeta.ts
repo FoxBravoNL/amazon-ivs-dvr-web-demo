@@ -1,19 +1,19 @@
-import { CloudFrontRequestEvent } from 'aws-lambda';
-import { StreamState } from '@aws-sdk/client-ivs';
+import { CloudFrontRequestEvent } from "aws-lambda";
+import { StreamState } from "@aws-sdk/client-ivs";
 
 import {
-  getS3Object,
-  getActiveStream,
-  createResponse,
-  isS3Error
-} from './utils';
+	getS3Object,
+	getActiveStream,
+	createResponse,
+	isS3Error,
+} from "./utils";
 
 interface RecordingStartedMetadata {
-  isChannelLive: boolean;
-  livePlaybackUrl?: string;
-  masterKey?: string;
-  recordingStartedAt?: string;
-  playlistDuration?: number;
+	isChannelLive: boolean;
+	livePlaybackUrl?: string;
+	masterKey?: string;
+	recordingStartedAt?: string;
+	playlistDuration?: number;
 }
 
 /**
@@ -37,75 +37,82 @@ interface RecordingStartedMetadata {
  * @param event CloudFront Origin Request event
  */
 const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
-  const { origin, uri } = event.Records[0].cf.request;
-  const customHeaders = origin!.s3!.customHeaders;
-  const channelArn = customHeaders['channel-arn'][0].value || '';
-  const bucketName = customHeaders['vod-record-bucket-name'][0].value || '';
-  const key = uri.slice(1);
-  let response;
+	const { origin, uri } = event.Records[0].cf.request;
+	const customHeaders = origin!.s3!.customHeaders;
+	const channelArn = customHeaders["channel-arn"][0].value || ""; // --> TODO: Extract all channels
+	const bucketName = customHeaders["vod-record-bucket-name"][0].value || ""; // --> TODO: Extract all bucket names (or paths)
+	const key = uri.slice(1);
+	let response;
 
-  try {
-    // Get recording-started-latest.json file
-    const { body: jsonBody } = await getS3Object(key, bucketName);
-    const {
-      media: {
-        hls: { path, playlist, renditions }
-      },
-      recording_started_at: recordingStartedAt,
-      streamId: recordedStreamId
-    } = JSON.parse(jsonBody);
-    const activeStream = await getActiveStream(channelArn);
-    const {
-      playbackUrl: livePlaybackUrl,
-      state: channelState,
-      streamId: activeStreamId
-    } = activeStream || {};
-    const isChannelLive = channelState === StreamState.StreamLive;
+	try {
+		// Get recording-started-latest.json file
+		const { body: jsonBody } = await getS3Object(key, bucketName);
+		const {
+			media: {
+				hls: { path, playlist, renditions },
+			},
+			recording_started_at: recordingStartedAt,
+			streamId: recordedStreamId,
+		} = JSON.parse(jsonBody);
+		const activeStream = await getActiveStream(channelArn); // TODO: --> Check for all streams (or main?)
+		const {
+			playbackUrl: livePlaybackUrl,
+			state: channelState,
+			streamId: activeStreamId,
+		} = activeStream || {};
+		const isChannelLive = channelState === StreamState.StreamLive;
 
-    // Build response body
-    const recordingStartedMetadata: RecordingStartedMetadata = {
-      isChannelLive,
-      livePlaybackUrl: isChannelLive ? livePlaybackUrl : ''
-    };
+		// Build response body
+		const recordingStartedMetadata: RecordingStartedMetadata = {
+			isChannelLive,
+			livePlaybackUrl: isChannelLive ? livePlaybackUrl : "",
+		};
 
-    // Only return VOD metadata if the recorded stream metadata is for the currently live stream (if one exists)
-    if (recordedStreamId === activeStreamId) {
-      recordingStartedMetadata.masterKey = `${path}/${playlist}`;
-      recordingStartedMetadata.recordingStartedAt = recordingStartedAt;
+		// Only return VOD metadata if the recorded stream metadata is for the currently live stream (if one exists) --> TODO: Change? We also want VOD data when stream is stopped + do for all 4 streams
+		if (recordedStreamId === activeStreamId) {
+			recordingStartedMetadata.masterKey = `${path}/${playlist}`;
+			recordingStartedMetadata.recordingStartedAt = recordingStartedAt;
 
-      try {
-        const [highestRendition] = renditions;
-        const renditionKey = `${path}/${highestRendition.path}/${highestRendition.playlist}`;
-        const { body: textBody } = await getS3Object(renditionKey, bucketName);
-        const regExp = /EXT-X-TWITCH-TOTAL-SECS:(.+)$/m;
-        const match = textBody.match(regExp)?.[1];
+			try {
+				const [highestRendition] = renditions;
+				const renditionKey = `${path}/${highestRendition.path}/${highestRendition.playlist}`;
+				const { body: textBody } = await getS3Object(
+					renditionKey,
+					bucketName
+				);
+				const regExp = /EXT-X-TWITCH-TOTAL-SECS:(.+)$/m;
+				const match = textBody.match(regExp)?.[1];
 
-        if (match) {
-          recordingStartedMetadata.playlistDuration = parseInt(match);
-        }
-      } catch (error) {
-        /**
-         * Error out silently:
-         * playlistDuration is only required for iOS devices when working with an open VOD playlist, other devices will get this value from the player instance on the FE.
-         */
-      }
-    }
+				if (match) {
+					recordingStartedMetadata.playlistDuration = parseInt(match);
+				}
+			} catch (error) {
+				/**
+				 * Error out silently:
+				 * playlistDuration is only required for iOS devices when working with an open VOD playlist, other devices will get this value from the player instance on the FE.
+				 */
+			}
+		}
 
-    response = createResponse(200, {
-      body: JSON.stringify(recordingStartedMetadata),
-      contentType: 'application/json',
-      maxAge: 1
-    });
-  } catch (error) {
-    if (isS3Error(error) && error.Code === 'NoSuchKey') {
-      response = createResponse(200, { maxAge: 1, body: JSON.stringify(null) });
-    } else {
-      console.error(error);
-      response = createResponse(500, { maxAge: 1 });
-    }
-  }
+		response = createResponse(200, {
+			body: JSON.stringify(recordingStartedMetadata),
+			contentType: "application/json",
+			maxAge: 1,
+		});
+	} catch (error) {
+		if (isS3Error(error) && error.Code === "NoSuchKey") {
+			// TODO: --> Included error message that stream is not running yet
+			response = createResponse(200, {
+				maxAge: 1,
+				body: JSON.stringify(null),
+			});
+		} else {
+			console.error(error);
+			response = createResponse(500, { maxAge: 1 });
+		}
+	}
 
-  return response;
+	return response;
 };
 
 export const handler = getLatestRecordingStartMeta;
