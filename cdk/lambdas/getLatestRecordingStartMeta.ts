@@ -14,6 +14,7 @@ interface RecordingStartedMetadata {
 	masterKey?: string;
 	recordingStartedAt?: string;
 	playlistDuration?: number;
+	channelId: String;
 }
 
 /**
@@ -39,10 +40,26 @@ interface RecordingStartedMetadata {
 const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 	const { origin, uri } = event.Records[0].cf.request;
 	const customHeaders = origin!.s3!.customHeaders;
-	const channelArn = customHeaders["overview-channel-arn"][0].value || ""; // --> TODO: Extract all channels
-	const bucketName = customHeaders["vod-record-bucket-name"][0].value || ""; // --> TODO: Extract all bucket names (or paths)
+	// const channelArn = customHeaders["overview-channel-arn"][0].value || ""; // --> TODO: Extract all channels
+	const path = origin!.s3!.path;
+	const overviewChannelArn =
+		customHeaders["overview-channel-arn"][0].value || "";
+	const screensChannelArn =
+		customHeaders["screens-channel-arn"][0].value || "";
+	const bucketName = customHeaders["vod-record-bucket-name"][0].value || "";
 	const key = uri.slice(1);
 	let response;
+
+	// TODO: Check which channel triggered the function --> test with stopping 1 of 2 streams
+	// arn:aws:ivs:us-east-1:667901935354:channel/oXwVrTur9eES
+	const splitPath = path.split("/");
+	const overviewChannelId = overviewChannelArn.split("/")[1];
+	const screensChannelId = screensChannelArn.split("/")[1];
+	const isOverview = splitPath.includes(overviewChannelId);
+
+	console.log(
+		`Get latest recordingstartmeta overview ${isOverview} --> Path: ${splitPath}, key: ${key}`
+	);
 
 	try {
 		// Get recording-started-latest.json file
@@ -53,8 +70,9 @@ const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 			},
 			recording_started_at: recordingStartedAt,
 			streamId: recordedStreamId,
+			channelId: channelId,
 		} = JSON.parse(jsonBody);
-		const activeStream = await getActiveStream(channelArn); // TODO: --> Check for all streams (or main?)
+		const activeStream = await getActiveStream(overviewChannelArn); // TODO: --> Check for all streams (or main?)
 		const {
 			playbackUrl: livePlaybackUrl,
 			state: channelState,
@@ -66,33 +84,31 @@ const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 		const recordingStartedMetadata: RecordingStartedMetadata = {
 			isChannelLive,
 			livePlaybackUrl: isChannelLive ? livePlaybackUrl : "",
+			channelId,
 		};
 
 		// Only return VOD metadata if the recorded stream metadata is for the currently live stream (if one exists) --> TODO: Change? We also want VOD data when stream is stopped + do for all 4 streams
-		if (recordedStreamId === activeStreamId) {
-			recordingStartedMetadata.masterKey = `${path}/${playlist}`;
-			recordingStartedMetadata.recordingStartedAt = recordingStartedAt;
+		// if (recordedStreamId === activeStreamId) {
+		recordingStartedMetadata.masterKey = `${path}/${playlist}`;
+		recordingStartedMetadata.recordingStartedAt = recordingStartedAt;
 
-			try {
-				const [highestRendition] = renditions;
-				const renditionKey = `${path}/${highestRendition.path}/${highestRendition.playlist}`;
-				const { body: textBody } = await getS3Object(
-					renditionKey,
-					bucketName
-				);
-				const regExp = /EXT-X-TWITCH-TOTAL-SECS:(.+)$/m;
-				const match = textBody.match(regExp)?.[1];
+		try {
+			const [highestRendition] = renditions;
+			const renditionKey = `${path}/${highestRendition.path}/${highestRendition.playlist}`;
+			const { body: textBody } = await getS3Object(renditionKey, bucketName);
+			const regExp = /EXT-X-TWITCH-TOTAL-SECS:(.+)$/m;
+			const match = textBody.match(regExp)?.[1];
 
-				if (match) {
-					recordingStartedMetadata.playlistDuration = parseInt(match);
-				}
-			} catch (error) {
-				/**
-				 * Error out silently:
-				 * playlistDuration is only required for iOS devices when working with an open VOD playlist, other devices will get this value from the player instance on the FE.
-				 */
+			if (match) {
+				recordingStartedMetadata.playlistDuration = parseInt(match);
 			}
+		} catch (error) {
+			/**
+			 * Error out silently:
+			 * playlistDuration is only required for iOS devices when working with an open VOD playlist, other devices will get this value from the player instance on the FE.
+			 */
 		}
+		// }
 
 		response = createResponse(200, {
 			body: JSON.stringify(recordingStartedMetadata),

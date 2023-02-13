@@ -36,10 +36,24 @@ const TOTAL_PLAYLIST_UPDATE_DELAY =
 const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 	const { origin, uri } = event.Records[0].cf.request;
 	const customHeaders = origin!.s3!.customHeaders;
-	const channelArn = customHeaders["overview-channel-arn"][0].value || "";
+	const path = origin!.s3!.path;
+	const overviewChannelArn =
+		customHeaders["overview-channel-arn"][0].value || "";
+	const screensChannelArn =
+		customHeaders["screens-channel-arn"][0].value || "";
+
 	const bucketName = customHeaders["vod-record-bucket-name"][0].value || "";
 	const key = uri.slice(1);
 	let response;
+
+	// TODO: Check which channel triggered the function --> test with stopping 1 of 2 streams
+	// arn:aws:ivs:us-east-1:667901935354:channel/oXwVrTur9eES
+	const splitPath = path.split("/");
+	const overviewChannelId = overviewChannelArn.split("/")[1];
+	const screensChannelId = screensChannelArn.split("/")[1];
+	const isOverview = splitPath.includes(overviewChannelId);
+
+	console.log(`Is overview ${isOverview} --> Path: ${splitPath}`);
 
 	const removeEndlist = (playlist: string) =>
 		playlist.replace("#EXT-X-ENDLIST", "").trim();
@@ -64,7 +78,7 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 		} else {
 			// Playlist updated more than 32 seconds ago
 			const { state: channelState } =
-				(await getActiveStream(channelArn)) || {};
+				(await getActiveStream(overviewChannelArn)) || {};
 			const isChannelLive = channelState === StreamState.StreamLive;
 
 			if (isChannelLive) {

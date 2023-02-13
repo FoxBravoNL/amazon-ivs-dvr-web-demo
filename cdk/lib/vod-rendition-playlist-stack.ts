@@ -103,7 +103,7 @@ export class DVRdemoStack extends Stack {
 			}
 		);
 
-		// Grant the Lambda execution role Read permissions to the VOD S3 bucket --> TODO: grant permission to all folders (or make 4 calls)
+		// Grant the Lambda execution role Read permissions to the VOD S3 bucket
 		bucket.grantRead(modifyRenditionPlaylistLambda, "*/playlist.m3u8");
 
 		// Grant the Lambda execution role GetStream permissions to the IVS channel
@@ -121,17 +121,20 @@ export class DVRdemoStack extends Stack {
 			}
 		);
 
-		// Grant the Lambda execution role Read and Put permissions to the VOD S3 bucket --> TODO: Grant permission to all folders
+		// Grant the Lambda execution role Read and Put permissions to the VOD S3 bucket
 		bucket.grantRead(
 			saveRecordingStartMetaLambda,
 			"*/recording-started.json"
 		);
-		bucket.grantPut(saveRecordingStartMetaLambda, "recording-info/*.json");
+		bucket.grantPut(
+			saveRecordingStartMetaLambda,
+			"recording-started-latest*.json"
+		);
 
 		// Grant the Lambda execution role GetStream permissions to the IVS channel
 		saveRecordingStartMetaLambda.addToRolePolicy(getStreamPolicy);
 
-		// Add an S3 Event Notification that invokes the saveRecordingStartMeta Lambda function when a recording-started.json object is created in the VOD S3 bucket --> TODO: Pass channel arn or bucket identifier to lamda function
+		// Add an S3 Event Notification that invokes the saveRecordingStartMeta Lambda function when a recording-started.json object is created in the VOD S3 bucket
 		bucket.addEventNotification(
 			s3.EventType.OBJECT_CREATED_PUT,
 			new s3n.LambdaDestination(saveRecordingStartMetaLambda),
@@ -150,10 +153,10 @@ export class DVRdemoStack extends Stack {
 			}
 		);
 
-		// Grant the Lambda execution role Read permissions to the VOD S3 bucket --> TODO: grant permission to all files
+		// Grant the Lambda execution role Read permissions to the VOD S3 bucket
 		bucket.grantRead(
 			getLatestRecordingStartMetaLambda,
-			"recording-started-latest.json"
+			"recording-started-latest*.json"
 		);
 		bucket.grantRead(getLatestRecordingStartMetaLambda, "*/playlist.m3u8");
 
@@ -161,7 +164,7 @@ export class DVRdemoStack extends Stack {
 		getLatestRecordingStartMetaLambda.addToRolePolicy(getStreamPolicy);
 
 		/**
-		 * Origin Access Identity (OAI) that CloudFront will use to access the S3 bucket --> TODO: Check if all channel-arns need to be included
+		 * Origin Access Identity (OAI) that CloudFront will use to access the S3 bucket --> TODO: Create 4
 		 */
 		const oai = new cloudfront.OriginAccessIdentity(this, "vod-oai");
 		const origin = new origins.S3Origin(bucket, {
@@ -169,10 +172,9 @@ export class DVRdemoStack extends Stack {
 			customHeaders: {
 				"vod-record-bucket-name": vodBucketName,
 				"overview-channel-arn": overviewChannelArn,
-				"screens-channel-arn": screensChannelArn,
+				"screens-channel-arn": overviewChannelArn,
 			},
 		});
-
 		/**
 		 * Custom Cache Policy to allow max-age caching values between 0 seconds and 1 year
 		 */
@@ -235,7 +237,7 @@ export class DVRdemoStack extends Stack {
 					],
 				},
 				// Caching behaviour for invoking a Lambda@Edge function on Origin Requests to fetch the recording-started-latest.json metadata file from the VOD S3 bucket with caching DISABLED
-				"recording-info/*.json": {
+				"recording-started-latest*.json": {
 					origin,
 					originRequestPolicy:
 						cloudfront.OriginRequestPolicy.CORS_S3_ORIGIN,
