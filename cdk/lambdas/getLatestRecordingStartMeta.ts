@@ -39,7 +39,7 @@ interface RecordingStartedMetadata {
 const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 	const { origin, uri } = event.Records[0].cf.request;
 	const customHeaders = origin!.s3!.customHeaders;
-	const channelArn = customHeaders["channel-arn"][0].value || ""; // --> TODO: Extract all channels
+	const channelArn = customHeaders["overview-channel-arn"][0].value || ""; // --> TODO: Extract all channels
 	const bucketName = customHeaders["vod-record-bucket-name"][0].value || ""; // --> TODO: Extract all bucket names (or paths)
 	const key = uri.slice(1);
 	let response;

@@ -21,13 +21,13 @@ export class DVRdemoStack extends Stack {
 		super(scope, id, props);
 
 		/**
-		 * S3 bucket where the VOD content will be stored --> TODO: make 4 with unique path
+		 * S3 bucket where the VOD content will be stored --> TODO: make 4 with unique path?
 		 */
 		const bucket = new s3.Bucket(this, "vod-record-bucket");
 		const { bucketName: vodBucketName } = bucket;
 
 		/**
-		 * IVS Channel Recording Configuration --> TODO: make 4
+		 * IVS Channel Recording Configuration --> TODO: make 4?
 		 */
 		const recordingConfig = new ivs.CfnRecordingConfiguration(
 			this,
@@ -43,31 +43,52 @@ export class DVRdemoStack extends Stack {
 		/**
 		 * IVS Channel --> TODO: make 4
 		 */
-		const channel = new ivs.CfnChannel(this, "DVR-demo-channel", {
+		const overviewChannel = new ivs.CfnChannel(this, "Overview-channel", {
+			latencyMode: "LOW",
+			name: "Overview-channel",
+			recordingConfigurationArn,
+			type: channelType,
+		});
+
+		// Extract
+		const {
+			attrArn: overviewChannelArn,
+			attrPlaybackUrl: overviewPlaybackUrl,
+			attrIngestEndpoint: overviewIngestEndpoint,
+		} = overviewChannel;
+
+		const screensChannel = new ivs.CfnChannel(this, "DVR-demo-channel", {
 			latencyMode: "LOW",
 			name: "DVR-demo-channel",
 			recordingConfigurationArn,
 			type: channelType,
 		});
 		const {
-			attrArn: channelArn,
-			attrPlaybackUrl: playbackUrl,
-			attrIngestEndpoint: ingestEndpoint,
-		} = channel;
+			attrArn: screensChannelArn,
+			attrPlaybackUrl: screensPlaybackUrl,
+			attrIngestEndpoint: screensIngestEndpoint,
+		} = screensChannel;
 
 		// Stream configuration values --> TODO: make 4
-		const ingestServer = `rtmps://${ingestEndpoint}:443/app/`;
+		const overviewIngestServer = `rtmps://${overviewIngestEndpoint}:443/app/`;
+		const { attrValue: overviewStreamKey } = new ivs.CfnStreamKey(
+			this,
+			"overview-dvr-streamkey",
+			{ channelArn: overviewChannelArn }
+		);
+
+		const screensIngestServer = `rtmps://${screensIngestEndpoint}:443/app/`;
 		const { attrValue: streamKey } = new ivs.CfnStreamKey(
 			this,
-			"dvr-streamkey",
-			{ channelArn }
+			"screens-dvr-streamkey",
+			{ channelArn: screensChannelArn }
 		);
 
 		// IAM policy statement with GetStream permissions to the IVS channel (attached to the Lambda functions that require it)
 		const getStreamPolicy = new iam.PolicyStatement({
 			actions: ["ivs:GetStream"],
 			effect: iam.Effect.ALLOW,
-			resources: [channelArn], // --> TODO: Add 4 channelArns
+			resources: [overviewChannelArn, screensChannelArn], // --> TODO: Add 4 channelArns
 		});
 
 		/**
@@ -105,15 +126,12 @@ export class DVRdemoStack extends Stack {
 			saveRecordingStartMetaLambda,
 			"*/recording-started.json"
 		);
-		bucket.grantPut(
-			saveRecordingStartMetaLambda,
-			"recording-started-latest.json"
-		);
+		bucket.grantPut(saveRecordingStartMetaLambda, "recording-info/*.json");
 
 		// Grant the Lambda execution role GetStream permissions to the IVS channel
 		saveRecordingStartMetaLambda.addToRolePolicy(getStreamPolicy);
 
-		// Add an S3 Event Notification that invokes the saveRecordingStartMeta Lambda function when a recording-started.json object is created in the VOD S3 bucket
+		// Add an S3 Event Notification that invokes the saveRecordingStartMeta Lambda function when a recording-started.json object is created in the VOD S3 bucket --> TODO: Pass channel arn or bucket identifier to lamda function
 		bucket.addEventNotification(
 			s3.EventType.OBJECT_CREATED_PUT,
 			new s3n.LambdaDestination(saveRecordingStartMetaLambda),
@@ -150,7 +168,8 @@ export class DVRdemoStack extends Stack {
 			originAccessIdentity: oai,
 			customHeaders: {
 				"vod-record-bucket-name": vodBucketName,
-				"channel-arn": channelArn,
+				"overview-channel-arn": overviewChannelArn,
+				"screens-channel-arn": screensChannelArn,
 			},
 		});
 
@@ -216,7 +235,7 @@ export class DVRdemoStack extends Stack {
 					],
 				},
 				// Caching behaviour for invoking a Lambda@Edge function on Origin Requests to fetch the recording-started-latest.json metadata file from the VOD S3 bucket with caching DISABLED
-				"/recording-started-latest.json": {
+				"recording-info/*.json": {
 					origin,
 					originRequestPolicy:
 						cloudfront.OriginRequestPolicy.CORS_S3_ORIGIN,
@@ -237,9 +256,9 @@ export class DVRdemoStack extends Stack {
 		/**
 		 * Stack Outputs -->
 		 */
-		new CfnOutput(this, "ingestServer", { value: ingestServer });
+		new CfnOutput(this, "ingestServer", { value: overviewIngestServer });
 		new CfnOutput(this, "streamKey", { value: streamKey });
-		new CfnOutput(this, "playbackUrl", { value: playbackUrl });
+		new CfnOutput(this, "playbackUrl", { value: overviewPlaybackUrl });
 		new CfnOutput(this, "distributionDomainName", { value: domainName });
 	}
 }

@@ -28,9 +28,11 @@ const saveRecordingStartMeta = async (event: S3Event) => {
 		const stream = await getActiveStream(metadata.channel_arn);
 		metadata.streamId = stream?.streamId || "";
 
-		// saves the latest recording-start.json metadata file at the top-level of the VOD S3 bucket TODO: --> Save in location specific to stream
+		const channelId = metadata.channel_arn.split("channel/")[1];
+
+		// saves the latest recording-start.json metadata file at the top-level of the VOD S3 bucket TODO: --> Save with channel arn in filename
 		await putS3Object(
-			"recording-started-latest.json",
+			`recording-info/recording-started-latest-${channelId}.json`,
 			bucketName,
 			JSON.stringify(metadata)
 		);
