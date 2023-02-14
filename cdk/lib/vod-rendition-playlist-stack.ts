@@ -64,24 +64,28 @@ export class DVRdemoStack extends Stack {
 			{ channelArn: overviewChannelArn }
 		);
 
-		// Screens channel
-		const screensChannel = new ivs.CfnChannel(this, "Screens-channel", {
-			latencyMode: "LOW",
-			name: "Screens-channel",
-			recordingConfigurationArn,
-			type: channelType,
-		});
-		const {
-			attrArn: screensChannelArn,
-			attrPlaybackUrl: screensPlaybackUrl,
-			attrIngestEndpoint: screensIngestEndpoint,
-		} = screensChannel;
-
-		const screensIngestServer = `rtmps://${screensIngestEndpoint}:443/app/`;
-		const { attrValue: screensStreamKey } = new ivs.CfnStreamKey(
+		// instruments channel
+		const instrumentsChannel = new ivs.CfnChannel(
 			this,
-			"screens-dvr-streamkey",
-			{ channelArn: screensChannelArn }
+			"instruments-channel",
+			{
+				latencyMode: "LOW",
+				name: "instruments-channel",
+				recordingConfigurationArn,
+				type: channelType,
+			}
+		);
+		const {
+			attrArn: instrumentsChannelArn,
+			attrPlaybackUrl: instrumentsPlaybackUrl,
+			attrIngestEndpoint: instrumentsIngestEndpoint,
+		} = instrumentsChannel;
+
+		const instrumentsIngestServer = `rtmps://${instrumentsIngestEndpoint}:443/app/`;
+		const { attrValue: instrumentsStreamKey } = new ivs.CfnStreamKey(
+			this,
+			"instruments-dvr-streamkey",
+			{ channelArn: instrumentsChannelArn }
 		);
 
 		// Capt channel
@@ -130,7 +134,7 @@ export class DVRdemoStack extends Stack {
 			effect: iam.Effect.ALLOW,
 			resources: [
 				overviewChannelArn,
-				screensChannelArn,
+				instrumentsChannelArn,
 				captChannelArn,
 				foChannelArn,
 			],
@@ -217,7 +221,7 @@ export class DVRdemoStack extends Stack {
 			customHeaders: {
 				"vod-record-bucket-name": vodBucketName,
 				"overview-channel-arn": overviewChannelArn,
-				"screens-channel-arn": screensChannelArn,
+				"instruments-channel-arn": instrumentsChannelArn,
 				"capt-channel-arn": captChannelArn,
 				"fo-channel-arn": foChannelArn,
 			},
@@ -314,13 +318,15 @@ export class DVRdemoStack extends Stack {
 			value: overviewPlaybackUrl,
 		});
 
-		// Screens
-		new CfnOutput(this, "screensIngestServer", {
-			value: screensIngestServer,
+		// instruments
+		new CfnOutput(this, "instrumentsIngestServer", {
+			value: instrumentsIngestServer,
 		});
-		new CfnOutput(this, "screensStreamKey", { value: screensStreamKey });
-		new CfnOutput(this, "screensPlaybackUrl", {
-			value: screensPlaybackUrl,
+		new CfnOutput(this, "instrumentsStreamKey", {
+			value: instrumentsStreamKey,
+		});
+		new CfnOutput(this, "instrumentsPlaybackUrl", {
+			value: instrumentsPlaybackUrl,
 		});
 
 		// Capt

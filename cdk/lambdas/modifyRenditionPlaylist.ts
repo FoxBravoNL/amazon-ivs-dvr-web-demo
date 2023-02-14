@@ -39,8 +39,8 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 	const path = origin!.s3!.path;
 	const overviewChannelArn =
 		customHeaders["overview-channel-arn"][0].value || "";
-	const screensChannelArn =
-		customHeaders["screens-channel-arn"][0].value || "";
+	const instrumentsChannelArn =
+		customHeaders["instruments-channel-arn"][0].value || "";
 	const captChannelArn = customHeaders["capt-channel-arn"][0].value || "";
 	const foChannelArn = customHeaders["fo-channel-arn"][0].value || "";
 
@@ -53,9 +53,9 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 	// Example path: s3://dvrdemostack-vodrecordbucket7dc8b4c7-1btsazxj4r69p/ivs/v1/667901935354/44USK7rjNnSh/2023/2/13/16/19/ayj1JvYhySGJ/events/recording-started.json
 	const splitPath = path.split("/"); // Split path up into segments
 	const overviewChannelId = overviewChannelArn.split("/")[1]; // Split channelArn into segments from headers for overview
-	const screensChannelId = screensChannelArn.split("/")[1]; // Split channelArn into segments from headers for screens
-	const captChannelId = captChannelArn.split("/")[1]; // Split channelArn into segments from headers for screens
-	const foChannelId = foChannelArn.split("/")[1]; // Split channelArn into segments from headers for screens
+	const instrumentsChannelId = instrumentsChannelArn.split("/")[1]; // Split channelArn into segments from headers for instruments
+	const captChannelId = captChannelArn.split("/")[1]; // Split channelArn into segments from headers for instruments
+	const foChannelId = foChannelArn.split("/")[1]; // Split channelArn into segments from headers for instruments
 
 	var channelArn = "";
 
@@ -63,10 +63,10 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 		// Channel is overview
 		channelArn = overviewChannelArn;
 		console.log("Modifiy rendition requested for overview");
-	} else if (splitPath.includes(screensChannelId)) {
-		// Channel is screens
-		channelArn = screensChannelArn;
-		console.log("Modifiy rendition requested for screens");
+	} else if (splitPath.includes(instrumentsChannelId)) {
+		// Channel is instruments
+		channelArn = instrumentsChannelArn;
+		console.log("Modifiy rendition requested for instruments");
 	} else if (splitPath.includes(captChannelId)) {
 		// Channel is capt
 		channelArn = captChannelArn;
