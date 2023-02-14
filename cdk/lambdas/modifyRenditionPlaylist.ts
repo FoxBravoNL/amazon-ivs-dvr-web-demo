@@ -41,6 +41,8 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 		customHeaders["overview-channel-arn"][0].value || "";
 	const screensChannelArn =
 		customHeaders["screens-channel-arn"][0].value || "";
+	const captChannelArn = customHeaders["capt-channel-arn"][0].value || "";
+	const foChannelArn = customHeaders["fo-channel-arn"][0].value || "";
 
 	const bucketName = customHeaders["vod-record-bucket-name"][0].value || "";
 	const key = uri.slice(1);
@@ -52,6 +54,8 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 	const splitPath = path.split("/"); // Split path up into segments
 	const overviewChannelId = overviewChannelArn.split("/")[1]; // Split channelArn into segments from headers for overview
 	const screensChannelId = screensChannelArn.split("/")[1]; // Split channelArn into segments from headers for screens
+	const captChannelId = captChannelArn.split("/")[1]; // Split channelArn into segments from headers for screens
+	const foChannelId = foChannelArn.split("/")[1]; // Split channelArn into segments from headers for screens
 
 	var channelArn = "";
 
@@ -63,6 +67,14 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 		// Channel is screens
 		channelArn = screensChannelArn;
 		console.log("Modifiy rendition requested for screens");
+	} else if (splitPath.includes(captChannelId)) {
+		// Channel is capt
+		channelArn = captChannelArn;
+		console.log("Modifiy rendition requested for capt");
+	} else if (splitPath.includes(foChannelId)) {
+		// Channel is FO
+		channelArn = foChannelArn;
+		console.log("Modifiy rendition requested for fo");
 	}
 
 	const removeEndlist = (playlist: string) =>

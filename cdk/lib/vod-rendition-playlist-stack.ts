@@ -21,13 +21,13 @@ export class DVRdemoStack extends Stack {
 		super(scope, id, props);
 
 		/**
-		 * S3 bucket where the VOD content will be stored --> TODO: make 4 with unique path?
+		 * S3 bucket where the VOD content will be stored for client
 		 */
 		const bucket = new s3.Bucket(this, "vod-record-bucket");
 		const { bucketName: vodBucketName } = bucket;
 
 		/**
-		 * IVS Channel Recording Configuration --> TODO: make 4?
+		 * IVS Channel Recording Configuration For Client
 		 */
 		const recordingConfig = new ivs.CfnRecordingConfiguration(
 			this,
@@ -41,22 +41,30 @@ export class DVRdemoStack extends Stack {
 		const { attrArn: recordingConfigurationArn } = recordingConfig;
 
 		/**
-		 * IVS Channel --> TODO: make 4
+		 * IVS Channels
 		 */
+
+		// Overview channel
 		const overviewChannel = new ivs.CfnChannel(this, "Overview-channel", {
 			latencyMode: "LOW",
 			name: "Overview-channel",
 			recordingConfigurationArn,
 			type: channelType,
 		});
-
-		// Extract
 		const {
 			attrArn: overviewChannelArn,
 			attrPlaybackUrl: overviewPlaybackUrl,
 			attrIngestEndpoint: overviewIngestEndpoint,
 		} = overviewChannel;
 
+		const overviewIngestServer = `rtmps://${overviewIngestEndpoint}:443/app/`;
+		const { attrValue: overviewStreamKey } = new ivs.CfnStreamKey(
+			this,
+			"overview-dvr-streamkey",
+			{ channelArn: overviewChannelArn }
+		);
+
+		// Screens channel
 		const screensChannel = new ivs.CfnChannel(this, "Screens-channel", {
 			latencyMode: "LOW",
 			name: "Screens-channel",
@@ -69,14 +77,6 @@ export class DVRdemoStack extends Stack {
 			attrIngestEndpoint: screensIngestEndpoint,
 		} = screensChannel;
 
-		// Stream configuration values --> TODO: make 4
-		const overviewIngestServer = `rtmps://${overviewIngestEndpoint}:443/app/`;
-		const { attrValue: overviewStreamKey } = new ivs.CfnStreamKey(
-			this,
-			"overview-dvr-streamkey",
-			{ channelArn: overviewChannelArn }
-		);
-
 		const screensIngestServer = `rtmps://${screensIngestEndpoint}:443/app/`;
 		const { attrValue: screensStreamKey } = new ivs.CfnStreamKey(
 			this,
@@ -84,11 +84,56 @@ export class DVRdemoStack extends Stack {
 			{ channelArn: screensChannelArn }
 		);
 
+		// Capt channel
+		const captChannel = new ivs.CfnChannel(this, "Capt-channel", {
+			latencyMode: "LOW",
+			name: "Capt-channel",
+			recordingConfigurationArn,
+			type: channelType,
+		});
+		const {
+			attrArn: captChannelArn,
+			attrPlaybackUrl: captPlaybackUrl,
+			attrIngestEndpoint: captIngestEndpoint,
+		} = captChannel;
+
+		const captIngestServer = `rtmps://${captIngestEndpoint}:443/app/`;
+		const { attrValue: captStreamKey } = new ivs.CfnStreamKey(
+			this,
+			"capt-dvr-streamkey",
+			{ channelArn: captChannelArn }
+		);
+
+		// FO channel
+		const foChannel = new ivs.CfnChannel(this, "FO-channel", {
+			latencyMode: "LOW",
+			name: "FO-channel",
+			recordingConfigurationArn,
+			type: channelType,
+		});
+		const {
+			attrArn: foChannelArn,
+			attrPlaybackUrl: foPlaybackUrl,
+			attrIngestEndpoint: foIngestEndpoint,
+		} = foChannel;
+
+		const foIngestServer = `rtmps://${foIngestEndpoint}:443/app/`;
+		const { attrValue: foStreamKey } = new ivs.CfnStreamKey(
+			this,
+			"fo-dvr-streamkey",
+			{ channelArn: foChannelArn }
+		);
+
 		// IAM policy statement with GetStream permissions to the IVS channel (attached to the Lambda functions that require it)
 		const getStreamPolicy = new iam.PolicyStatement({
 			actions: ["ivs:GetStream"],
 			effect: iam.Effect.ALLOW,
-			resources: [overviewChannelArn, screensChannelArn], // --> TODO: Add 4 channelArns
+			resources: [
+				overviewChannelArn,
+				screensChannelArn,
+				captChannelArn,
+				foChannelArn,
+			],
 		});
 
 		/**
@@ -173,6 +218,8 @@ export class DVRdemoStack extends Stack {
 				"vod-record-bucket-name": vodBucketName,
 				"overview-channel-arn": overviewChannelArn,
 				"screens-channel-arn": screensChannelArn,
+				"capt-channel-arn": captChannelArn,
+				"fo-channel-arn": foChannelArn,
 			},
 		});
 		/**
@@ -274,6 +321,24 @@ export class DVRdemoStack extends Stack {
 		new CfnOutput(this, "screensStreamKey", { value: screensStreamKey });
 		new CfnOutput(this, "screensPlaybackUrl", {
 			value: screensPlaybackUrl,
+		});
+
+		// Capt
+		new CfnOutput(this, "captIngestServer", {
+			value: captIngestServer,
+		});
+		new CfnOutput(this, "captStreamKey", { value: captStreamKey });
+		new CfnOutput(this, "captPlaybackUrl", {
+			value: captPlaybackUrl,
+		});
+
+		// FO
+		new CfnOutput(this, "foIngestServer", {
+			value: foIngestServer,
+		});
+		new CfnOutput(this, "foStreamKey", { value: foStreamKey });
+		new CfnOutput(this, "foPlaybackUrl", {
+			value: foPlaybackUrl,
 		});
 
 		// Domain

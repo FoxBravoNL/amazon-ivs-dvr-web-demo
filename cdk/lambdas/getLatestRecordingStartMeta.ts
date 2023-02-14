@@ -40,25 +40,9 @@ interface RecordingStartedMetadata {
 const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 	const { origin, uri } = event.Records[0].cf.request;
 	const customHeaders = origin!.s3!.customHeaders;
-	// const channelArn = customHeaders["overview-channel-arn"][0].value || ""; // --> TODO: Extract all channels
-	const path = origin!.s3!.path;
-	const overviewChannelArn =
-		customHeaders["overview-channel-arn"][0].value || "";
-	const screensChannelArn =
-		customHeaders["screens-channel-arn"][0].value || "";
 	const bucketName = customHeaders["vod-record-bucket-name"][0].value || "";
 	const key = uri.slice(1);
 	let response;
-
-	// TODO: Check which channel triggered the function --> test with stopping 1 of 2 streams
-	const splitPath = path.split("/");
-	const overviewChannelId = overviewChannelArn.split("/")[1];
-	const screensChannelId = screensChannelArn.split("/")[1];
-	const isOverview = splitPath.includes(overviewChannelId);
-
-	console.log(
-		`Get latest recordingstartmeta overview ${isOverview} --> Path: ${splitPath}, key: ${key}`
-	);
 
 	try {
 		// Get recording-started-latest.json file
