@@ -7,6 +7,15 @@ import {
 	createResponse,
 	isS3Error,
 } from "./utils";
+import { Source } from "aws-cdk-lib/aws-codebuild";
+
+enum SourcePosition {
+	Overview = "OVERVIEW",
+	Instruments = "INSTRUMENTS",
+	Captain = "CAPTAIN",
+	FO = "FO",
+	Unknown = "UNKNOWN",
+}
 
 interface RecordingStartedMetadata {
 	isChannelLive: boolean;
@@ -15,6 +24,7 @@ interface RecordingStartedMetadata {
 	recordingStartedAt?: string;
 	playlistDuration?: number;
 	channelId: String;
+	sourcePosition: String;
 }
 
 /**
@@ -40,6 +50,13 @@ interface RecordingStartedMetadata {
 const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 	const { origin, uri } = event.Records[0].cf.request;
 	const customHeaders = origin!.s3!.customHeaders;
+	const overviewChannelArn =
+		customHeaders["overview-channel-arn"][0].value || "";
+	const instrumentsChannelArn =
+		customHeaders["instruments-channel-arn"][0].value || "";
+	const captChannelArn = customHeaders["capt-channel-arn"][0].value || "";
+	const foChannelArn = customHeaders["fo-channel-arn"][0].value || "";
+
 	const bucketName = customHeaders["vod-record-bucket-name"][0].value || "";
 	const key = uri.slice(1);
 	let response;
@@ -65,11 +82,32 @@ const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 		} = activeStream || {};
 		const isChannelLive = channelState === StreamState.StreamLive;
 
+		// Check for which channel the playlist is requested to assign the right arn
+		// Example ARN: arn:aws:ivs:us-east-1:667901935354:channel/44USK7rjNnSh
+		// Example path: s3://dvrdemostack-vodrecordbucket7dc8b4c7-1btsazxj4r69p/ivs/v1/667901935354/44USK7rjNnSh/2023/2/13/16/19/ayj1JvYhySGJ/events/recording-started.json
+
+		var sourcePosition = SourcePosition.Unknown;
+
+		if (channelArn == overviewChannelArn) {
+			// Channel is overview
+			sourcePosition = SourcePosition.Overview;
+		} else if (channelArn == instrumentsChannelArn) {
+			// Channel is instruments
+			sourcePosition = SourcePosition.Instruments;
+		} else if (channelArn == captChannelArn) {
+			// Channel is capt
+			sourcePosition = SourcePosition.Captain;
+		} else if (channelArn == foChannelArn) {
+			// Channel is FO
+			sourcePosition = SourcePosition.FO;
+		}
+
 		// Build response body
 		const recordingStartedMetadata: RecordingStartedMetadata = {
 			isChannelLive,
 			livePlaybackUrl: isChannelLive ? livePlaybackUrl : "",
 			channelId,
+			sourcePosition,
 		};
 
 		// Only return VOD metadata if the recorded stream metadata is for the currently live stream (if one exists) --> TODO: Change? We also want VOD data when stream is stopped + do for all 4 streams
