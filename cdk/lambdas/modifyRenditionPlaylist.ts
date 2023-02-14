@@ -46,14 +46,24 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 	const key = uri.slice(1);
 	let response;
 
-	// TODO: Check which channel triggered the function --> test with stopping 1 of 2 streams
-	// arn:aws:ivs:us-east-1:667901935354:channel/oXwVrTur9eES
-	const splitPath = path.split("/");
-	const overviewChannelId = overviewChannelArn.split("/")[1];
-	const screensChannelId = screensChannelArn.split("/")[1];
-	const isOverview = splitPath.includes(overviewChannelId);
+	// Check for which channel the playlist is requested to assign the right arn
+	// Example ARN: arn:aws:ivs:us-east-1:667901935354:channel/44USK7rjNnSh
+	// Example path: s3://dvrdemostack-vodrecordbucket7dc8b4c7-1btsazxj4r69p/ivs/v1/667901935354/44USK7rjNnSh/2023/2/13/16/19/ayj1JvYhySGJ/events/recording-started.json
+	const splitPath = path.split("/"); // Split path up into segments
+	const overviewChannelId = overviewChannelArn.split("/")[1]; // Split channelArn into segments from headers for overview
+	const screensChannelId = screensChannelArn.split("/")[1]; // Split channelArn into segments from headers for screens
 
-	console.log(`Is overview ${isOverview} --> Path: ${splitPath}`);
+	var channelArn = "";
+
+	if (splitPath.includes(overviewChannelId)) {
+		// Channel is overview
+		channelArn = overviewChannelArn;
+		console.log("Modifiy rendition requested for overview");
+	} else if (splitPath.includes(screensChannelId)) {
+		// Channel is screens
+		channelArn = screensChannelArn;
+		console.log("Modifiy rendition requested for screens");
+	}
 
 	const removeEndlist = (playlist: string) =>
 		playlist.replace("#EXT-X-ENDLIST", "").trim();
@@ -78,7 +88,7 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 		} else {
 			// Playlist updated more than 32 seconds ago
 			const { state: channelState } =
-				(await getActiveStream(overviewChannelArn)) || {};
+				(await getActiveStream(channelArn)) || {};
 			const isChannelLive = channelState === StreamState.StreamLive;
 
 			if (isChannelLive) {

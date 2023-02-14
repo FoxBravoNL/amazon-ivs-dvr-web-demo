@@ -57,9 +57,9 @@ export class DVRdemoStack extends Stack {
 			attrIngestEndpoint: overviewIngestEndpoint,
 		} = overviewChannel;
 
-		const screensChannel = new ivs.CfnChannel(this, "DVR-demo-channel", {
+		const screensChannel = new ivs.CfnChannel(this, "Screens-channel", {
 			latencyMode: "LOW",
-			name: "DVR-demo-channel",
+			name: "Screens-channel",
 			recordingConfigurationArn,
 			type: channelType,
 		});
@@ -78,7 +78,7 @@ export class DVRdemoStack extends Stack {
 		);
 
 		const screensIngestServer = `rtmps://${screensIngestEndpoint}:443/app/`;
-		const { attrValue: streamKey } = new ivs.CfnStreamKey(
+		const { attrValue: screensStreamKey } = new ivs.CfnStreamKey(
 			this,
 			"screens-dvr-streamkey",
 			{ channelArn: screensChannelArn }
@@ -172,7 +172,7 @@ export class DVRdemoStack extends Stack {
 			customHeaders: {
 				"vod-record-bucket-name": vodBucketName,
 				"overview-channel-arn": overviewChannelArn,
-				"screens-channel-arn": overviewChannelArn,
+				"screens-channel-arn": screensChannelArn,
 			},
 		});
 		/**
@@ -258,9 +258,25 @@ export class DVRdemoStack extends Stack {
 		/**
 		 * Stack Outputs -->
 		 */
-		new CfnOutput(this, "ingestServer", { value: overviewIngestServer });
-		new CfnOutput(this, "streamKey", { value: streamKey });
-		new CfnOutput(this, "playbackUrl", { value: overviewPlaybackUrl });
+		// Overview
+		new CfnOutput(this, "overviewIngestServer", {
+			value: overviewIngestServer,
+		});
+		new CfnOutput(this, "overviewStreamKey", { value: overviewStreamKey });
+		new CfnOutput(this, "overviewPlaybackUrl", {
+			value: overviewPlaybackUrl,
+		});
+
+		// Screens
+		new CfnOutput(this, "screensIngestServer", {
+			value: screensIngestServer,
+		});
+		new CfnOutput(this, "screensStreamKey", { value: screensStreamKey });
+		new CfnOutput(this, "screensPlaybackUrl", {
+			value: screensPlaybackUrl,
+		});
+
+		// Domain
 		new CfnOutput(this, "distributionDomainName", { value: domainName });
 	}
 }

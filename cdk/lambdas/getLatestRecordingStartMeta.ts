@@ -51,7 +51,6 @@ const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 	let response;
 
 	// TODO: Check which channel triggered the function --> test with stopping 1 of 2 streams
-	// arn:aws:ivs:us-east-1:667901935354:channel/oXwVrTur9eES
 	const splitPath = path.split("/");
 	const overviewChannelId = overviewChannelArn.split("/")[1];
 	const screensChannelId = screensChannelArn.split("/")[1];
@@ -71,8 +70,10 @@ const getLatestRecordingStartMeta = async (event: CloudFrontRequestEvent) => {
 			recording_started_at: recordingStartedAt,
 			streamId: recordedStreamId,
 			channelId: channelId,
+			channel_arn: channelArn,
 		} = JSON.parse(jsonBody);
-		const activeStream = await getActiveStream(overviewChannelArn); // TODO: --> Check for all streams (or main?)
+
+		const activeStream = await getActiveStream(channelArn);
 		const {
 			playbackUrl: livePlaybackUrl,
 			state: channelState,
