@@ -2,6 +2,8 @@ import { S3Event } from "aws-lambda";
 
 import { getS3Object, putS3Object, getActiveStream } from "./utils";
 
+const AWS = require("aws-sdk");
+
 /**
  * Receives the incoming s3:ObjectCreated:Put event containing the key and VOD bucket details
  * of the latest recording-start.json metadata file. The file is fetched from the bucket and
@@ -28,12 +30,18 @@ const saveRecordingStartMeta = async (event: S3Event) => {
 		const stream = await getActiveStream(metadata.channel_arn);
 		metadata.streamId = stream?.streamId || "";
 
+		const { body: activeSessionBody } = await getS3Object(
+			"ActiveSessionID",
+			bucketName
+		);
+		console.log("Active session ID: " + activeSessionBody);
+
 		const channelId = metadata.channel_arn.split("channel/")[1];
 		metadata.channelId = channelId;
 
 		// saves the latest recording-start.json metadata file at the top-level of the VOD S3 bucket TODO: --> Save with channel arn in filename
 		await putS3Object(
-			`recording-started-latest-${channelId}.json`,
+			`recording-started-latest-${activeSessionBody}-${channelId}.json`,
 			bucketName,
 			JSON.stringify(metadata)
 		);

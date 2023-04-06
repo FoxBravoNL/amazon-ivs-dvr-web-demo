@@ -35,7 +35,10 @@ export class DVRdemoStack extends Stack {
 			{
 				name: "dvr-recording-config",
 				destinationConfiguration: { s3: { bucketName: vodBucketName } },
-				thumbnailConfiguration: { recordingMode: "DISABLED" },
+				thumbnailConfiguration: {
+					recordingMode: "INTERVAL",
+					targetIntervalSeconds: 30,
+				},
 			}
 		);
 		const { attrArn: recordingConfigurationArn } = recordingConfig;
@@ -175,6 +178,7 @@ export class DVRdemoStack extends Stack {
 			saveRecordingStartMetaLambda,
 			"*/recording-started.json"
 		);
+		bucket.grantRead(saveRecordingStartMetaLambda, "ActiveSessionID");
 		bucket.grantPut(
 			saveRecordingStartMetaLambda,
 			"recording-started-latest*.json"
