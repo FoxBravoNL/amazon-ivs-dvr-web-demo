@@ -34,6 +34,8 @@ const TOTAL_PLAYLIST_UPDATE_DELAY =
  * @param event CloudFront Origin Request event
  */
 const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
+	console.log("Modify Rendition Called");
+
 	const { origin, uri } = event.Records[0].cf.request;
 	const customHeaders = origin!.s3!.customHeaders;
 	const path = origin!.s3!.path;
@@ -46,12 +48,14 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 
 	const bucketName = customHeaders["vod-record-bucket-name"][0].value || "";
 	const key = uri.slice(1);
+
 	let response;
 
 	// Check for which channel the playlist is requested to assign the right arn
 	// Example ARN: arn:aws:ivs:us-east-1:667901935354:channel/44USK7rjNnSh
 	// Example path: s3://dvrdemostack-vodrecordbucket7dc8b4c7-1btsazxj4r69p/ivs/v1/667901935354/44USK7rjNnSh/2023/2/13/16/19/ayj1JvYhySGJ/events/recording-started.json
-	const splitPath = path.split("/"); // Split path up into segments
+	// const splitPath = path.split("/"); // Split path up into segments
+	const splitURI = uri.split("/");
 	const overviewChannelId = overviewChannelArn.split("/")[1]; // Split channelArn into segments from headers for overview
 	const instrumentsChannelId = instrumentsChannelArn.split("/")[1]; // Split channelArn into segments from headers for instruments
 	const captChannelId = captChannelArn.split("/")[1]; // Split channelArn into segments from headers for instruments
@@ -59,19 +63,31 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 
 	var channelArn = "";
 
-	if (splitPath.includes(overviewChannelId)) {
+	console.log("Request: ", event.Records[0].cf.request);
+	// console.log("Path value: ", path);
+	console.log("Split uri value: ", splitURI);
+
+	console.log(
+		"Channel ARNs: ",
+		overviewChannelId,
+		instrumentsChannelId,
+		captChannelId,
+		foChannelId
+	);
+
+	if (splitURI.includes(overviewChannelId)) {
 		// Channel is overview
 		channelArn = overviewChannelArn;
 		console.log("Modifiy rendition requested for overview");
-	} else if (splitPath.includes(instrumentsChannelId)) {
+	} else if (splitURI.includes(instrumentsChannelId)) {
 		// Channel is instruments
 		channelArn = instrumentsChannelArn;
 		console.log("Modifiy rendition requested for instruments");
-	} else if (splitPath.includes(captChannelId)) {
+	} else if (splitURI.includes(captChannelId)) {
 		// Channel is capt
 		channelArn = captChannelArn;
 		console.log("Modifiy rendition requested for capt");
-	} else if (splitPath.includes(foChannelId)) {
+	} else if (splitURI.includes(foChannelId)) {
 		// Channel is FO
 		channelArn = foChannelArn;
 		console.log("Modifiy rendition requested for fo");
@@ -81,6 +97,7 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 		playlist.replace("#EXT-X-ENDLIST", "").trim();
 
 	try {
+		console.log("Getting playlist...");
 		const { body: playlist, LastModified } = await getS3Object(
 			key,
 			bucketName
@@ -90,6 +107,7 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 		let body, maxAge;
 
 		if (timeSinceLastModified < TOTAL_PLAYLIST_UPDATE_DELAY) {
+			console.log("Updated withing last 32 secs");
 			// Playlist updated within the last 32 seconds
 			const timeUntilNextUpdate = Math.max(
 				0,
@@ -98,16 +116,21 @@ const modifyRenditionPlaylist = async (event: CloudFrontRequestEvent) => {
 			maxAge = Math.floor(timeUntilNextUpdate / 1000); // 0s < maxAge < 30s
 			body = removeEndlist(playlist);
 		} else {
+			console.log("Updated > 32 secs ago");
+
 			// Playlist updated more than 32 seconds ago
 			const { state: channelState } =
 				(await getActiveStream(channelArn)) || {};
 			const isChannelLive = channelState === StreamState.StreamLive;
 
 			if (isChannelLive) {
+				console.log("Live channel");
+
 				// Playlist update could be delayed
 				maxAge = 0;
 				body = removeEndlist(playlist);
 			} else {
+				console.log("Final channel");
 				// Playlist is final - no re-write
 				maxAge = 31536000; // 31536000 seconds = 1 year (Maximum CF TTL)
 				body = playlist;
